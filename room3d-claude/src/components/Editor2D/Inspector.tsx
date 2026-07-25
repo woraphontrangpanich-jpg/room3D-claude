@@ -1,0 +1,125 @@
+import { useSceneStore } from "../../store/sceneStore";
+
+export default function Inspector() {
+  const scene = useSceneStore((s) => s.scene);
+  const selectedId = useSceneStore((s) => s.selectedId);
+  const selectedKind = useSceneStore((s) => s.selectedKind);
+  const updateFurniture = useSceneStore((s) => s.updateFurniture);
+  const updateOpening = useSceneStore((s) => s.updateOpening);
+  const removeFurniture = useSceneStore((s) => s.removeFurniture);
+  const removeOpening = useSceneStore((s) => s.removeOpening);
+  const duplicateFurniture = useSceneStore((s) => s.duplicateFurniture);
+  const pushHistory = useSceneStore((s) => s.pushHistory);
+
+  if (!selectedId || !selectedKind) {
+    return (
+      <div className="inspector-panel">
+        <h2>Inspector</h2>
+        <p className="catalog-hint">Select a wall, opening, or piece of furniture to edit its properties.</p>
+      </div>
+    );
+  }
+
+  if (selectedKind === "furniture") {
+    const item = scene.furniture.find((f) => f.id === selectedId);
+    if (!item) return null;
+    return (
+      <div className="inspector-panel">
+        <h2>{item.label}</h2>
+        <label>
+          Width (cm)
+          <input
+            type="number"
+            value={Math.round(item.footprint[0])}
+            onChange={(e) => updateFurniture(item.id, { footprint: [Number(e.target.value), item.footprint[1]] })}
+            onBlur={() => pushHistory()}
+          />
+        </label>
+        <label>
+          Depth (cm)
+          <input
+            type="number"
+            value={Math.round(item.footprint[1])}
+            onChange={(e) => updateFurniture(item.id, { footprint: [item.footprint[0], Number(e.target.value)] })}
+            onBlur={() => pushHistory()}
+          />
+        </label>
+        <label>
+          Rotation (°)
+          <input
+            type="number"
+            step={15}
+            value={Math.round(item.rotationDeg)}
+            onChange={(e) => updateFurniture(item.id, { rotationDeg: Number(e.target.value) })}
+            onBlur={() => pushHistory()}
+          />
+        </label>
+        <label>
+          Color
+          <input
+            type="color"
+            value={item.color}
+            onChange={(e) => updateFurniture(item.id, { color: e.target.value })}
+          />
+        </label>
+        <div className="inspector-actions">
+          <button onClick={() => duplicateFurniture(item.id)}>Duplicate</button>
+          <button className="danger" onClick={() => removeFurniture(item.id)}>Delete</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (selectedKind === "opening") {
+    const opening = scene.openings.find((o) => o.id === selectedId);
+    if (!opening) return null;
+    return (
+      <div className="inspector-panel">
+        <h2>{opening.type === "door" ? "Door" : "Window"}</h2>
+        <label>
+          Width (cm)
+          <input
+            type="number"
+            value={opening.width}
+            onChange={(e) => updateOpening(opening.id, { width: Number(e.target.value) })}
+            onBlur={() => pushHistory()}
+          />
+        </label>
+        <label>
+          Height (cm)
+          <input
+            type="number"
+            value={opening.height}
+            onChange={(e) => updateOpening(opening.id, { height: Number(e.target.value) })}
+            onBlur={() => pushHistory()}
+          />
+        </label>
+        <label>
+          Position along wall (cm)
+          <input
+            type="number"
+            value={Math.round(opening.position)}
+            onChange={(e) => updateOpening(opening.id, { position: Number(e.target.value) })}
+            onBlur={() => pushHistory()}
+          />
+        </label>
+        {opening.type === "window" && (
+          <label>
+            Sill height (cm)
+            <input
+              type="number"
+              value={opening.sillHeight ?? 90}
+              onChange={(e) => updateOpening(opening.id, { sillHeight: Number(e.target.value) })}
+              onBlur={() => pushHistory()}
+            />
+          </label>
+        )}
+        <div className="inspector-actions">
+          <button className="danger" onClick={() => removeOpening(opening.id)}>Delete</button>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+}
