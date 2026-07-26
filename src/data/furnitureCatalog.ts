@@ -114,6 +114,123 @@ export const CATALOG_CATEGORIES = Array.from(
   new Set(FURNITURE_CATALOG.map((f) => f.category))
 );
 
+/**
+ * Reuse a close-enough downloaded model when the catalog id doesn't have a
+ * direct one-to-one file name in the furniture pack.
+ *
+ * This keeps the viewer populated with real GLBs for more items instead of
+ * falling back to placeholders.
+ */
+const MODEL_ALIASES: Record<string, string> = {
+  sofa_2seat: "sofa",
+  sofa_3seat: "sofa_long",
+  sofa_sectional: "sofa_corner",
+  armchair: "lounge_chair",
+  recliner: "lounge_design_chair",
+  console_table: "side_table",
+  tv_wall: "tv",
+  bookshelf: "bookshelf_closed",
+  shelf_living: "bookshelf_open_low",
+  cabinet_living: "bookshelf_closed_doors",
+  ottoman: "sofa_ottoman",
+  table_lamp_living: "table_lamp",
+  curtains_living: "wall_lamp",
+  area_rug: "rug_rectangle",
+  plant_potted: "plant",
+  bed_queen: "bed_double",
+  bed_king: "bed_double",
+  mattress: "bed_double",
+  bed_frame: "bed_double",
+  headboard: "bed_double",
+  nightstand: "side_table",
+  wardrobe: "bookshelf_closed_wide",
+  dresser: "side_table_drawers",
+  desk_bedroom: "desk",
+  chair_bedroom: "chair",
+  mirror_standing: "bathroom_mirror",
+  bookshelf_bedroom: "bookshelf_open",
+  rug_bedroom: "rug_rectangle",
+  lamp_bedroom: "table_lamp",
+  curtains_bedroom: "wall_lamp",
+  storage_box: "storage_box",
+  counter_base: "kitchen_cabinet_lower",
+  cabinet_upper: "kitchen_cabinet_upper",
+  countertop: "dining_table",
+  pantry_cabinet: "bookshelf_closed_wide",
+  sink_kitchen: "kitchen_sink",
+  oven: "stove",
+  fridge: "refrigerator",
+  dishwasher: "washer",
+  dining_chair: "chair",
+  shelf_kitchen: "bookshelf_open_low",
+  sink_bathroom: "bathroom_sink",
+  sink_vanity: "bathroom_cabinet_drawer",
+  mirror_bathroom: "bathroom_mirror",
+  cabinet_bathroom: "bathroom_cabinet",
+  medicine_cabinet: "bathroom_cabinet_drawer",
+  shower_stall: "shower",
+  shower_curtain: "shower_round",
+  towel_rack: "coat_rack",
+  towel_stack: "storage_box_open",
+  hamper: "storage_box_open",
+  shelf_bathroom: "bookshelf_open_low",
+  soap_dispenser: "bottle_cup",
+  toilet_paper_holder: "wall_lamp",
+  bath_mat: "rug_rectangle",
+  office_chair: "desk_chair",
+  filing_cabinet: "bookshelf_closed_doors",
+  aircon_split: "wall_lamp",
+  staircase: "stairs",
+  plant_decor: "plant",
+  wall_art: "frame",
+  books_stack: "books",
+  pillow: "pillow",
+  blanket: "rug_rectangle",
+  clock_wall: "radio",
+  basket: "storage_box_open",
+  shoes: "storage_box",
+  vase: "bottle_cup",
+  frame: "frame",
+  tissue_box: "storage_box",
+  bottle_cup: "bottle_cup",
+  remote_control: "keyboard",
+  dishware: "books",
+};
+
+function resolveModelId(catalogId: string): string {
+  return MODEL_ALIASES[catalogId] ?? catalogId;
+}
+
 export function getCatalogEntry(catalogId: string): CatalogEntry | undefined {
   return FURNITURE_CATALOG.find((f) => f.id === catalogId);
+}
+
+/**
+ * Convention-based model path: /models/<catalogId>.glb, served from /public/models.
+ * Real-model wiring (no code change needed):
+ *   1. Get/export a .glb for the item (see MODELS.md at the project root for sources).
+ *   2. Save it as  public/models/<catalogId>.glb  — e.g. public/models/sofa_2seat.glb
+ *   3. Reload the app. FurnitureModel.tsx picks it up automatically and swaps
+ *      out the placeholder box for the real model, scaled to fit the item's
+ *      footprint/heightCm.
+ * An entry can also set `modelUrl` explicitly in FURNITURE_CATALOG above to
+ * point somewhere else (e.g. a shared model reused by several catalog ids).
+ */
+export function getModelUrl(catalogId: string): string | undefined {
+  const entry = getCatalogEntry(catalogId);
+  return entry?.modelUrl ?? `/models/${resolveModelId(catalogId)}.glb`;
+}
+
+/** Models we've actually confirmed exist, so we don't try to fetch 90 missing files. */
+let availableModelIds: Set<string> | null = null;
+
+export function setAvailableModelIds(ids: string[]) {
+  availableModelIds = new Set(ids);
+}
+
+export function hasModel(catalogId: string): boolean {
+  if (!availableModelIds) return false;
+  const entry = getCatalogEntry(catalogId);
+  if (entry?.modelUrl) return true;
+  return availableModelIds.has(resolveModelId(catalogId));
 }

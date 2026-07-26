@@ -62,4 +62,11 @@ export interface CatalogEntry {
   color: string;
   /** true if it should snap to / hug the nearest wall on drop */
   wallHugging?: boolean;
+  /**
+   * Path to a real 3D model (.glb/.gltf), served from /public, e.g. "/models/sofa_2seat.glb".
+   * If set, the 3D viewer loads and displays this model (auto-scaled to fit
+   * footprint/heightCm) instead of the placeholder box. Leave unset to keep
+   * using the placeholder box for this item.
+   */
+  modelUrl?: string;
 }
