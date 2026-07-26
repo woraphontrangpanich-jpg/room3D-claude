@@ -1,7 +1,8 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import * as THREE from "three";
 import { useSceneStore } from "../../store/sceneStore";
 import type { Opening, Wall } from "../../types/scene";
+import { drawFloorPatternToCanvas } from "../../data/floorPatterns";
 
 const CM_TO_M = 0.01;
 
@@ -53,11 +54,91 @@ function buildWallSegments(wall: Wall, openings: Opening[]) {
   return { segments, angle, length };
 }
 
+/** Loads and caches a texture for a wallpaper image URL/data-URL. */
+function useWallpaperTexture(url: string | undefined) {
+  const [texture, setTexture] = useState<THREE.Texture | null>(null);
+
+  useEffect(() => {
+    if (!url) {
+      setTexture(null);
+      return;
+    }
+    let cancelled = false;
+    const loader = new THREE.TextureLoader();
+    loader.load(
+      url,
+      (tex) => {
+        if (cancelled) return;
+        tex.wrapS = THREE.RepeatWrapping;
+        tex.wrapT = THREE.RepeatWrapping;
+        tex.colorSpace = THREE.SRGBColorSpace;
+        setTexture(tex);
+      },
+      undefined,
+      () => {
+        if (!cancelled) setTexture(null);
+      }
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [url]);
+
+  return texture;
+}
+
+function WallSegmentMesh({
+  segLenM,
+  segHeightM,
+  centerAlong,
+  centerY,
+  thicknessM,
+  isGlass,
+  wallColor,
+  wallpaperTexture,
+}: {
+  segLenM: number;
+  segHeightM: number;
+  centerAlong: number;
+  centerY: number;
+  thicknessM: number;
+  isGlass?: boolean;
+  wallColor: string;
+  wallpaperTexture: THREE.Texture | null;
+}) {
+  // Tile the wallpaper roughly every meter so it doesn't stretch across long walls.
+  const tex = useMemo(() => {
+    if (!wallpaperTexture) return null;
+    const t = wallpaperTexture.clone();
+    t.needsUpdate = true;
+    t.repeat.set(Math.max(1, segLenM), Math.max(1, segHeightM));
+    return t;
+  }, [wallpaperTexture, segLenM, segHeightM]);
+
+  return (
+    <mesh position={[centerAlong * CM_TO_M, centerY * CM_TO_M, 0]} castShadow={!isGlass} receiveShadow>
+      <boxGeometry args={[segLenM, segHeightM, thicknessM]} />
+      {isGlass ? (
+        <meshPhysicalMaterial color="#bfe3ee" roughness={0.05} transmission={0.9} thickness={0.02} metalness={0} />
+      ) : (
+        <meshStandardMaterial
+          color={tex ? "#ffffff" : wallColor}
+          map={tex ?? undefined}
+          roughness={0.9}
+          metalness={0.02}
+        />
+      )}
+    </mesh>
+  );
+}
+
 function WallMesh({ wall, openings }: { wall: Wall; openings: Opening[] }) {
   const { segments, angle, length } = useMemo(() => buildWallSegments(wall, openings), [wall, openings]);
   const midX = (wall.start[0] + wall.end[0]) / 2;
   const midZ = (wall.start[1] + wall.end[1]) / 2;
   const thicknessM = wall.thickness * CM_TO_M;
+  const wallpaperTexture = useWallpaperTexture(wall.isGlass ? undefined : wall.wallpaperUrl);
+  const wallColor = wall.color ?? "#e8e6df";
 
   return (
     <group position={[midX * CM_TO_M, 0, midZ * CM_TO_M]} rotation={[0, -angle, 0]}>
@@ -67,25 +148,17 @@ function WallMesh({ wall, openings }: { wall: Wall; openings: Opening[] }) {
         const centerAlong = (seg.from + seg.to) / 2 - length / 2;
         const centerY = (seg.bottom + seg.top) / 2;
         return (
-          <mesh
+          <WallSegmentMesh
             key={i}
-            position={[centerAlong * CM_TO_M, centerY * CM_TO_M, 0]}
-            castShadow={!wall.isGlass}
-            receiveShadow
-          >
-            <boxGeometry args={[segLenM, segHeightM, thicknessM]} />
-            {wall.isGlass ? (
-              <meshPhysicalMaterial
-                color="#bfe3ee"
-                roughness={0.05}
-                transmission={0.9}
-                thickness={0.02}
-                metalness={0}
-              />
-            ) : (
-              <meshStandardMaterial color="#e8e6df" roughness={0.9} metalness={0.02} />
-            )}
-          </mesh>
+            segLenM={segLenM}
+            segHeightM={segHeightM}
+            centerAlong={centerAlong}
+            centerY={centerY}
+            thicknessM={thicknessM}
+            isGlass={wall.isGlass}
+            wallColor={wallColor}
+            wallpaperTexture={wallpaperTexture}
+          />
         );
       })}
     </group>
@@ -140,6 +213,24 @@ function DoorWindowFrames({ openings, walls }: { openings: Opening[]; walls: Wal
 export default function RoomMesh() {
   const scene = useSceneStore((s) => s.scene);
 
+  const floorTexture = useMemo(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 256;
+    canvas.height = 256;
+    drawFloorPatternToCanvas(canvas, scene.floorStyle.pattern, scene.floorStyle.color);
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    // Repeat roughly every 1.5m of floor so the pattern doesn't stretch on big rooms.
+    const allX = scene.walls.flatMap((w) => [w.start[0], w.end[0]]);
+    const allZ = scene.walls.flatMap((w) => [w.start[1], w.end[1]]);
+    const spanXM = allX.length ? (Math.max(...allX) - Math.min(...allX)) * CM_TO_M : 4;
+    const spanZM = allZ.length ? (Math.max(...allZ) - Math.min(...allZ)) * CM_TO_M : 4;
+    tex.repeat.set(Math.max(1, spanXM / 1.5), Math.max(1, spanZM / 1.5));
+    return tex;
+  }, [scene.floorStyle.pattern, scene.floorStyle.color, scene.walls]);
+
   // Chain walls start->end into a polygon (order-independent) so freeform-drawn
   // walls still produce a floor even if not added in perimeter order. If the
   // walls don't form a single closed loop, we skip the floor rather than
@@ -186,7 +277,7 @@ export default function RoomMesh() {
       {floorShape && (
         <mesh rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
           <shapeGeometry args={[floorShape]} />
-          <meshStandardMaterial color="#c9a876" roughness={0.85} side={THREE.DoubleSide} />
+          <meshStandardMaterial map={floorTexture} roughness={0.85} side={THREE.DoubleSide} />
         </mesh>
       )}
 

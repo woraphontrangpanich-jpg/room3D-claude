@@ -12,11 +12,36 @@ const SNAP_CLOSE_PX = 14; // click-near-start distance (px) that closes the loop
 const DEFAULT_WALL_THICKNESS = 12;
 const DEFAULT_WALL_HEIGHT = 260;
 
+const SNAP_ANGLE_TOLERANCE_DEG = 5; // auto-straighten: snap to 0/90/180/270 within this tolerance
+
 function toPx(cm: number) {
   return cm * PX_PER_CM;
 }
 
+/** If the segment from `from` to `to` is close to horizontal/vertical, snap it exactly straight. */
+function snapToAxis(from: Point, to: Point): Point {
+  const dx = to[0] - from[0];
+  const dz = to[1] - from[1];
+  const dist = Math.hypot(dx, dz);
+  if (dist < 1e-6) return to;
+  const angleDeg = (Math.atan2(dz, dx) * 180) / Math.PI; // -180..180
+  const nearest90 = Math.round(angleDeg / 90) * 90;
+  if (Math.abs(angleDeg - nearest90) <= SNAP_ANGLE_TOLERANCE_DEG) {
+    const rad = (nearest90 * Math.PI) / 180;
+    return [from[0] + Math.cos(rad) * dist, from[1] + Math.sin(rad) * dist];
+  }
+  return to;
+}
+
 type DrawMode = "wall" | "glassWall" | null;
+
+const MIN_ZOOM = 0.25;
+const MAX_ZOOM = 3;
+const ZOOM_STEP = 0.15;
+
+function clampZoom(z: number) {
+  return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, z));
+}
 
 export default function PlanCanvas() {
   const scene = useSceneStore((s) => s.scene);
@@ -39,6 +64,7 @@ export default function PlanCanvas() {
   const [drawMode, setDrawMode] = useState<DrawMode>(null);
   const [drawPoints, setDrawPoints] = useState<Point[]>([]);
   const [cursorCm, setCursorCm] = useState<Point | null>(null);
+  const [zoom, setZoom] = useState(1);
   const transformerRef = useRef<Konva.Transformer>(null);
   const selectedShapeRef = useRef<Konva.Group>(null);
 
@@ -82,17 +108,20 @@ export default function PlanCanvas() {
 
   function handleStageClick(xCm: number, zCm: number) {
     if (!drawMode) return;
+    const rawPoint: Point = [xCm, zCm];
+    const snappedPoint = drawPoints.length > 0 ? snapToAxis(drawPoints[drawPoints.length - 1], rawPoint) : rawPoint;
+
     if (drawPoints.length >= 1) {
       const first = drawPoints[0];
       const firstPx = { x: toPx(first[0]) + offsetX, y: toPx(first[1]) + offsetZ };
-      const clickPx = { x: toPx(xCm) + offsetX, y: toPx(zCm) + offsetZ };
+      const clickPx = { x: toPx(snappedPoint[0]) + offsetX, y: toPx(snappedPoint[1]) + offsetZ };
       const dist = Math.hypot(firstPx.x - clickPx.x, firstPx.y - clickPx.y);
       if (drawPoints.length >= 2 && dist <= SNAP_CLOSE_PX) {
         finishWallDrawing(true);
         return;
       }
     }
-    setDrawPoints((pts) => [...pts, [xCm, zCm]]);
+    setDrawPoints((pts) => [...pts, snappedPoint]);
   }
 
   useEffect(() => {
@@ -262,6 +291,17 @@ export default function PlanCanvas() {
             </button>
           ))}
         </div>
+        <div className="zoom-controls">
+          <button onClick={() => setZoom((z) => clampZoom(z - ZOOM_STEP))} title="Zoom out">
+            −
+          </button>
+          <button className="zoom-reset" onClick={() => setZoom(1)} title="Reset zoom">
+            {Math.round(zoom * 100)}%
+          </button>
+          <button onClick={() => setZoom((z) => clampZoom(z + ZOOM_STEP))} title="Zoom in">
+            +
+          </button>
+        </div>
         <span className="hint">
           {drawMode
             ? "Click to place wall points. Click near the start to close the loop, Enter to finish open, Esc to cancel."
@@ -275,12 +315,20 @@ export default function PlanCanvas() {
       <Stage
         width={stageWidth}
         height={stageHeight}
+        scaleX={zoom}
+        scaleY={zoom}
+        onWheel={(e) => {
+          e.evt.preventDefault();
+          setZoom((z) => clampZoom(z + (e.evt.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP)));
+        }}
         onMouseMove={(e) => {
           if (!drawMode) return;
           const stage = e.target.getStage();
           const pos = stage?.getPointerPosition();
           if (!pos) return;
-          setCursorCm([(pos.x - offsetX) / PX_PER_CM, (pos.y - offsetZ) / PX_PER_CM]);
+          const raw: Point = [(pos.x - offsetX) / PX_PER_CM, (pos.y - offsetZ) / PX_PER_CM];
+          const snapped = drawPoints.length > 0 ? snapToAxis(drawPoints[drawPoints.length - 1], raw) : raw;
+          setCursorCm(snapped);
         }}
         onMouseDown={(e) => {
           if (drawMode) {

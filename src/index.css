@@ -44,7 +44,17 @@ body {
 }
 
 .topbar-tabs { display: flex; gap: 6px; }
-.topbar-actions { display: flex; gap: 6px; margin-left: auto; }
+.topbar-actions { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.topbar-divider { width: 1px; height: 20px; background: var(--line); margin: 0 2px; }
+.topbar-toast {
+  font-size: 12px;
+  color: var(--accent);
+  background: var(--accent-quiet);
+  border: 1px solid var(--accent);
+  border-radius: 5px;
+  padding: 5px 10px;
+  margin-right: 4px;
+}
 
 button {
   background: var(--bg-2);
@@ -137,6 +147,9 @@ button.danger:hover { background: rgba(229, 98, 111, 0.12); }
 .plan-toolbar .hint { font-size: 12px; color: var(--text-1); margin-left: 8px; }
 .unit-toggle { display: flex; gap: 2px; margin-left: 4px; }
 .unit-toggle button { padding: 7px 9px; }
+.zoom-controls { display: flex; align-items: center; gap: 2px; margin-left: 4px; }
+.zoom-controls button { padding: 7px 10px; }
+.zoom-reset { min-width: 50px; font-variant-numeric: tabular-nums; }
 
 .inspector-panel label {
   display: flex;
@@ -154,6 +167,31 @@ button.danger:hover { background: rgba(229, 98, 111, 0.12); }
   padding: 6px 8px;
   font-size: 13px;
 }
+.inspector-panel select {
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  color: var(--text-0);
+  padding: 6px 8px;
+  font-size: 13px;
+}
+.inspector-subheading {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-1);
+  margin: 16px 0 8px;
+}
+.swatch-row { display: flex; gap: 6px; margin: -4px 0 12px; flex-wrap: wrap; }
+.swatch {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 5px;
+  border: 1px solid var(--line);
+  cursor: pointer;
+}
+.swatch:hover { border-color: var(--accent); }
 .inspector-actions { display: flex; gap: 8px; margin-top: 8px; }
 .inspector-checkbox {
   flex-direction: row !important;

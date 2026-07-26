@@ -11,6 +11,10 @@ export interface Wall {
   height: number; // cm
   /** true = fully transparent/glass wall (rendered like window glass, no opening needed) */
   isGlass?: boolean;
+  /** solid paint color for this wall, e.g. "#e8e6df". Ignored if wallpaperUrl is set. */
+  color?: string;
+  /** image URL (http(s) or data: URL from an upload) tiled across the wall as wallpaper */
+  wallpaperUrl?: string;
 }
 
 export type OpeningType = "door" | "window";
@@ -43,11 +47,21 @@ export interface FurnitureItem {
   flippedX?: boolean;
 }
 
+export type FloorPattern = "plain" | "wood" | "tile" | "carpet";
+
+export interface FloorStyle {
+  pattern: FloorPattern;
+  /** base color; for "plain" this is the only color used, for patterns it tints the pattern */
+  color: string;
+}
+
 export interface RoomScene {
   walls: Wall[];
   openings: Opening[];
   furniture: FurnitureItem[];
+  /** @deprecated kept for backward compatibility with older saved files; use floorStyle instead */
   floorMaterial: string;
+  floorStyle: FloorStyle;
   ceilingHeight: number; // cm, used when a wall doesn't override height
   unit: "cm";
 }

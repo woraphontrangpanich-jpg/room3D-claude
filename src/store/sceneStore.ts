@@ -7,6 +7,24 @@ function uid(prefix: string) {
   return `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
+const LOCAL_STORAGE_KEY = "room3d.savedScene.v1";
+
+/** Fill in fields that may be missing from scenes saved by an older version of the app. */
+function migrateScene(raw: unknown): RoomScene | null {
+  if (!raw || typeof raw !== "object") return null;
+  const s = raw as Partial<RoomScene>;
+  if (!Array.isArray(s.walls) || !Array.isArray(s.openings) || !Array.isArray(s.furniture)) return null;
+  return {
+    walls: s.walls,
+    openings: s.openings,
+    furniture: s.furniture,
+    floorMaterial: s.floorMaterial ?? "oak-wood-01",
+    floorStyle: s.floorStyle ?? { pattern: "wood", color: "#c9a876" },
+    ceilingHeight: s.ceilingHeight ?? 260,
+    unit: "cm",
+  };
+}
+
 // A blank scene: no walls, nothing to edit until the user draws something.
 function emptyRoom(): RoomScene {
   return {
@@ -14,6 +32,7 @@ function emptyRoom(): RoomScene {
     openings: [],
     furniture: [],
     floorMaterial: "oak-wood-01",
+    floorStyle: { pattern: "wood", color: "#c9a876" },
     ceilingHeight: 260,
     unit: "cm",
   };
@@ -38,6 +57,7 @@ function sampleRoom(): RoomScene {
     ],
     furniture: [],
     floorMaterial: "oak-wood-01",
+    floorStyle: { pattern: "wood", color: "#c9a876" },
     ceilingHeight: height,
     unit: "cm",
   };
@@ -83,6 +103,15 @@ interface SceneState {
   loadScene: (scene: RoomScene) => void;
   resetRoom: () => void;
   loadSampleRoom: () => void;
+  setFloorStyle: (style: RoomScene["floorStyle"]) => void;
+
+  // save / load
+  saveToLocalStorage: () => void;
+  loadFromLocalStorage: () => boolean;
+  hasSavedScene: () => boolean;
+  exportSceneJson: () => string;
+  importSceneJson: (json: string) => boolean;
+  lastSavedAt: number | null;
 
   // history
   pushHistory: () => void;
@@ -99,6 +128,7 @@ export const useSceneStore = create<SceneState>((set, get) => ({
   history: [],
   future: [],
   displayUnit: "m",
+  lastSavedAt: null,
 
   select: (id, kind) => set({ selectedId: id, selectedKind: kind }),
   setDisplayUnit: (unit) => set({ displayUnit: unit }),
@@ -264,5 +294,57 @@ export const useSceneStore = create<SceneState>((set, get) => ({
   loadSampleRoom: () => {
     get().pushHistory();
     set({ scene: sampleRoom(), selectedId: null, selectedKind: null });
+  },
+
+  setFloorStyle: (style) => {
+    get().pushHistory();
+    set((s) => ({ scene: { ...s.scene, floorStyle: style } }));
+  },
+
+  saveToLocalStorage: () => {
+    try {
+      window.localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(get().scene));
+      set({ lastSavedAt: Date.now() });
+    } catch (err) {
+      console.error("Failed to save room to localStorage", err);
+    }
+  },
+
+  loadFromLocalStorage: () => {
+    try {
+      const raw = window.localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (!raw) return false;
+      const migrated = migrateScene(JSON.parse(raw));
+      if (!migrated) return false;
+      get().pushHistory();
+      set({ scene: migrated, selectedId: null, selectedKind: null });
+      return true;
+    } catch (err) {
+      console.error("Failed to load room from localStorage", err);
+      return false;
+    }
+  },
+
+  hasSavedScene: () => {
+    try {
+      return window.localStorage.getItem(LOCAL_STORAGE_KEY) !== null;
+    } catch {
+      return false;
+    }
+  },
+
+  exportSceneJson: () => JSON.stringify(get().scene, null, 2),
+
+  importSceneJson: (json) => {
+    try {
+      const migrated = migrateScene(JSON.parse(json));
+      if (!migrated) return false;
+      get().pushHistory();
+      set({ scene: migrated, selectedId: null, selectedKind: null });
+      return true;
+    } catch (err) {
+      console.error("Failed to import room JSON", err);
+      return false;
+    }
   },
 }));

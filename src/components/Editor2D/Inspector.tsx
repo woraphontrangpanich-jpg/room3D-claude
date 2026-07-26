@@ -1,5 +1,6 @@
 import { useSceneStore } from "../../store/sceneStore";
 import { parseLengthToCm } from "../../utils/units";
+import { FLOOR_PATTERNS, FLOOR_COLOR_PRESETS, WALL_COLOR_PRESETS } from "../../data/floorPatterns";
 
 function normalizeDeg(deg: number) {
   const d = deg % 360;
@@ -14,6 +15,7 @@ export default function Inspector() {
   const updateOpening = useSceneStore((s) => s.updateOpening);
   const updateWall = useSceneStore((s) => s.updateWall);
   const setWallLength = useSceneStore((s) => s.setWallLength);
+  const setFloorStyle = useSceneStore((s) => s.setFloorStyle);
   const displayUnit = useSceneStore((s) => s.displayUnit);
   const removeFurniture = useSceneStore((s) => s.removeFurniture);
   const removeOpening = useSceneStore((s) => s.removeOpening);
@@ -24,8 +26,39 @@ export default function Inspector() {
   if (!selectedId || !selectedKind) {
     return (
       <div className="inspector-panel">
-        <h2>Inspector</h2>
+        <h2>Room</h2>
         <p className="catalog-hint">Select a wall, opening, or piece of furniture to edit its properties.</p>
+        <h3 className="inspector-subheading">Floor</h3>
+        <label>
+          Pattern
+          <select
+            value={scene.floorStyle.pattern}
+            onChange={(e) => setFloorStyle({ ...scene.floorStyle, pattern: e.target.value as typeof scene.floorStyle.pattern })}
+          >
+            {FLOOR_PATTERNS.map((p) => (
+              <option key={p.id} value={p.id}>{p.label}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Color
+          <input
+            type="color"
+            value={scene.floorStyle.color}
+            onChange={(e) => setFloorStyle({ ...scene.floorStyle, color: e.target.value })}
+          />
+        </label>
+        <div className="swatch-row">
+          {FLOOR_COLOR_PRESETS.map((c) => (
+            <button
+              key={c}
+              className="swatch"
+              style={{ background: c }}
+              title={c}
+              onClick={() => setFloorStyle({ ...scene.floorStyle, color: c })}
+            />
+          ))}
+        </div>
       </div>
     );
   }
@@ -204,6 +237,69 @@ export default function Inspector() {
           />
           Glass wall
         </label>
+        {!wall.isGlass && (
+          <>
+            <label>
+              Wall color
+              <input
+                type="color"
+                value={wall.color ?? "#e8e6df"}
+                onChange={(e) => updateWall(wall.id, { color: e.target.value, wallpaperUrl: undefined })}
+                onBlur={() => pushHistory()}
+              />
+            </label>
+            <div className="swatch-row">
+              {WALL_COLOR_PRESETS.map((c) => (
+                <button
+                  key={c}
+                  className="swatch"
+                  style={{ background: c }}
+                  title={c}
+                  onClick={() => {
+                    pushHistory();
+                    updateWall(wall.id, { color: c, wallpaperUrl: undefined });
+                  }}
+                />
+              ))}
+            </div>
+            <label>
+              Wallpaper image URL
+              <input
+                key={wall.id}
+                type="text"
+                placeholder="https://... or paste an uploaded image"
+                defaultValue={wall.wallpaperUrl ?? ""}
+                onBlur={(e) => {
+                  pushHistory();
+                  updateWall(wall.id, { wallpaperUrl: e.target.value.trim() || undefined });
+                }}
+              />
+            </label>
+            <label>
+              Or upload an image
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = "";
+                  if (!file) return;
+                  const reader = new FileReader();
+                  reader.onload = () => {
+                    pushHistory();
+                    updateWall(wall.id, { wallpaperUrl: String(reader.result) });
+                  };
+                  reader.readAsDataURL(file);
+                }}
+              />
+            </label>
+            {wall.wallpaperUrl && (
+              <button onClick={() => { pushHistory(); updateWall(wall.id, { wallpaperUrl: undefined }); }}>
+                Remove wallpaper
+              </button>
+            )}
+          </>
+        )}
         <div className="inspector-actions">
           <button className="danger" onClick={() => removeWall(wall.id)}>Delete</button>
         </div>
