@@ -28,9 +28,7 @@ JSON-like scene object (`src/types/scene.ts`) held in a Zustand store
 
 ```
 RoomScene
-├── vertices[]   — shared corner points; walls reference these by ID so
-│                  dragging one corner moves every wall attached to it
-├── walls[]      — startVertexId/endVertexId + thickness + height (any polygon, not just a rectangle)
+├── walls[]      — line segments with thickness + height
 ├── openings[]   — doors/windows, each attached to a wallId + position along it
 └── furniture[]  — catalogId + position + rotation + footprint + color
 ```
@@ -57,47 +55,36 @@ src/
 ├── components/
 │   ├── Layout/TopBar.tsx       Tab switcher (2D/3D), undo/redo, reset
 │   ├── Editor2D/
-│   │   ├── PlanCanvas.tsx      Konva canvas: freeform wall drawing, vertex drag-editing, door/window placement, furniture drag/rotate/resize, meter ruler
+│   │   ├── PlanCanvas.tsx      Konva canvas: walls, door/window placement, furniture drag/rotate/resize
 │   │   ├── CatalogPanel.tsx    Left sidebar — drag or click to add furniture
-│   │   └── Inspector.tsx       Right sidebar — edit selected wall/opening/furniture's exact dimensions/rotation/color
+│   │   └── Inspector.tsx       Right sidebar — edit selected item's exact dimensions/rotation/color
 │   └── Viewer3D/
 │       ├── Viewer3D.tsx        Canvas setup, lighting, camera mode toggle
-│       ├── RoomMesh.tsx        Extrudes any wall polygon (not just rectangles) from the vertex/wall chain; cuts door/window openings
-│       ├── FurnitureMeshes.tsx Positions/rotates each furniture instance and hands off to FurnitureShape
-│       ├── FurnitureShape.tsx  Procedural mesh builder — one function per shapeType (chair, sofa, bed, fridge, toilet, etc.) instead of a plain box
+│       ├── RoomMesh.tsx        Extrudes walls/floor from the scene; cuts door/window openings
+│       ├── FurnitureMeshes.tsx Renders furniture as positioned/rotated boxes
 │       └── WalkControls.tsx    First-person WASD + mouse-look, with simple box collision
-├── utils/
-│   ├── units.ts                cm ⇄ m/cm/ft conversion + formatting for display
-│   └── color.ts                Shade/darken helper used to color furniture sub-parts (legs, doors, etc.)
 ```
 
 ## What's implemented right now
 
-- **Freeform room shapes**: draw any polygon room (L-shape, angled walls,
-  not just rectangles) via the "Draw walls" tool — click to place corners,
-  live length preview with 45° angle snapping, click near the start point
-  (or press Enter) to close the loop, Esc to cancel.
-- **Shared vertex model**: corners are shared points, so dragging one
-  corner moves every wall attached to it — no gaps from disconnected walls.
-- Double-click an existing wall to insert a new corner (for adding a notch/
-  L-shape to an already-built room).
-- **Meter ruler + unit toggle** (m / cm / ft) along the canvas edges, plus
-  a persistent length label on every wall, and precise numeric length entry
-  in the Inspector.
+- **Blank canvas by default.** The app starts with no walls; use "Load sample
+  room" in the 2D toolbar to drop in a demo 5m × 4m room instead.
+- **Freeform wall drawing.** "+ Draw wall" (or "+ Draw glass wall") lets you
+  click point-by-point to lay walls side by side. Click near your starting
+  point to close the loop into a room, or press Enter/double-click to finish
+  an open wall run. Esc cancels.
+- **Glass walls.** Draw them directly with "+ Draw glass wall", or select any
+  existing wall and toggle "Glass wall" in the Inspector — renders as a fully
+  transparent wall in 3D (same physical glass material as windows).
 - Click-to-place doors and windows on any wall, with adjustable width/height/position
-- ~35 furniture/fixture catalog entries across Living room, Bedroom, Kitchen,
-  Bathroom, Office, and Architectural (aircon, ceiling fan, staircase)
+- ~90 furniture/fixture catalog entries across Living room, Bedroom, Kitchen,
+  Bathroom, Office, Architectural, and Decor (small props)
 - Drag-and-drop furniture placement, drag to move, transformer handles to
-  resize/rotate, numeric inspector for exact values
+  resize/rotate, numeric inspector for exact values, plus one-click
+  **rotate 90° (either direction)** and **flip left/right** buttons
 - Undo/redo (snapshot-based, ~50 steps)
-- **Procedural furniture shapes**: every catalog item renders as a
-  recognizable silhouette built from primitives — a chair has a seat,
-  backrest, and four legs; a sofa has a base, backrest, and armrests; a bed
-  has a frame, mattress, headboard, and pillows; a toilet, sink, fridge,
-  stove, etc. each have their own shape — instead of a single box (see
-  `FurnitureShape.tsx`).
-- 3D extrusion of any wall polygon with real door/window cutouts
-  (segment-based, not full CSG — see "Known simplifications" below)
+- 3D extrusion of walls with real door/window cutouts (segment-based, not
+  full CSG — see "Known simplifications" below)
 - 3D orbit camera (mouse-drag to look around, like the Sketchfab reference)
 - 3D first-person walk mode: click to lock the mouse, WASD/arrows to move,
   with simple AABB collision against walls and furniture so you can't walk
@@ -108,20 +95,14 @@ src/
 These are called out in `PROJECT_PLAN.md` too — flagging them explicitly so
 they're a to-do list, not a mystery later:
 
-1. **Furniture is procedural (primitives), not real downloaded models.**
-   Each `shapeType` (chair, sofa, bed, fridge, ...) is built from a handful
-   of boxes/cylinders/cones in `FurnitureShape.tsx` — recognizable, but not
-   photorealistic. `CatalogEntry.modelPath` is already reserved in the type
-   so real `.glb` models (Sketchfab/Poly Pizza/Quaternius) can be swapped in
-   per-item later without touching the rest of the code — if `modelPath` is
-   set, load it; otherwise fall back to the procedural builder.
+1. **Furniture in 3D is a plain colored box** sized to its real-world
+   footprint, not a real model. Swapping in actual `.glb` models (Sketchfab/
+   Poly Pizza/Quaternius, or generated) is the highest-leverage next step
+   for realism — the catalog (`furnitureCatalog.ts`) already has a stable
+   `catalogId` per item to hang a model path off of.
 2. **Wall openings are cut by segmenting the wall** (solid strips around the
    gap) rather than a true boolean/CSG subtraction. Visually fine for
    rectangular openings; won't handle angled or curved cuts.
-3. **2D top-down furniture icons are still plain rectangles** — the 3D side
-   now has real shapes, but the 2D floor-plan icons haven't been upgraded
-   to matching outline symbols (circle for round table, L for sectional,
-   etc.) yet. Purely cosmetic, doesn't block anything.
 3. **Furniture collision (walk mode) ignores rotation** — it uses an
    axis-aligned box even for a rotated sofa. Fine for an MVP; swap for
    oriented-box or capsule collision if it becomes noticeable.
@@ -137,12 +118,10 @@ they're a to-do list, not a mystery later:
 ## Suggested next steps (in priority order)
 
 1. Wire up localStorage save/load + a "My projects" list.
-2. Swap the highest-impact procedural shapes for real `.glb` models (start
-   with sofa, bed, dining table, TV, fridge) using the `modelPath` fallback.
+2. Swap furniture boxes for real `.glb` models (start with 5–6 hero pieces:
+   sofa, bed, dining table, TV, fridge).
 3. Add PBR floor/wall textures + a material picker in the Inspector.
 4. Add a time-of-day light slider (cheap, big realism win).
-5. Upgrade 2D furniture icons to per-shapeType outline symbols.
-6. Mobile/touch controls for both the 2D editor and 3D walk mode.
+5. Mobile/touch controls for both the 2D editor and 3D walk mode.
 
-See `PROJECT_PLAN.md` for the original roadmap and `PHASE2_PLAN.md` for the
-freeform-walls + real-furniture-shapes plan this update implements.
+See `PROJECT_PLAN.md` for the full roadmap this was scaffolded from.

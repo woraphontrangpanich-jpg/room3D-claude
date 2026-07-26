@@ -1,62 +1,25 @@
 import { useSceneStore } from "../../store/sceneStore";
 import { parseLengthToCm } from "../../utils/units";
 
+function normalizeDeg(deg: number) {
+  const d = deg % 360;
+  return d < 0 ? d + 360 : d;
+}
+
 export default function Inspector() {
   const scene = useSceneStore((s) => s.scene);
   const selectedId = useSceneStore((s) => s.selectedId);
   const selectedKind = useSceneStore((s) => s.selectedKind);
-  const displayUnit = useSceneStore((s) => s.displayUnit);
   const updateFurniture = useSceneStore((s) => s.updateFurniture);
   const updateOpening = useSceneStore((s) => s.updateOpening);
   const updateWall = useSceneStore((s) => s.updateWall);
   const setWallLength = useSceneStore((s) => s.setWallLength);
+  const displayUnit = useSceneStore((s) => s.displayUnit);
   const removeFurniture = useSceneStore((s) => s.removeFurniture);
   const removeOpening = useSceneStore((s) => s.removeOpening);
   const removeWall = useSceneStore((s) => s.removeWall);
   const duplicateFurniture = useSceneStore((s) => s.duplicateFurniture);
   const pushHistory = useSceneStore((s) => s.pushHistory);
-
-  if (selectedKind === "wall") {
-    const wall = scene.walls.find((w) => w.id === selectedId);
-    if (!wall) return null;
-    const startV = scene.vertices.find((v) => v.id === wall.startVertexId);
-    const endV = scene.vertices.find((v) => v.id === wall.endVertexId);
-    const lenCm = startV && endV ? Math.hypot(endV.point[0] - startV.point[0], endV.point[1] - startV.point[1]) : 0;
-    return (
-      <div className="inspector-panel">
-        <h2>Wall</h2>
-        <label>
-          Length ({displayUnit})
-          <input
-            type="number"
-            defaultValue={(lenCm / (displayUnit === "m" ? 100 : displayUnit === "ft" ? 30.48 : 1)).toFixed(2)}
-            onBlur={(e) => setWallLength(wall.id, parseLengthToCm(e.target.value, displayUnit))}
-          />
-        </label>
-        <label>
-          Thickness (cm)
-          <input
-            type="number"
-            value={wall.thickness}
-            onChange={(e) => updateWall(wall.id, { thickness: Number(e.target.value) })}
-            onBlur={() => pushHistory()}
-          />
-        </label>
-        <label>
-          Height (cm)
-          <input
-            type="number"
-            value={wall.height}
-            onChange={(e) => updateWall(wall.id, { height: Number(e.target.value) })}
-            onBlur={() => pushHistory()}
-          />
-        </label>
-        <div className="inspector-actions">
-          <button className="danger" onClick={() => removeWall(wall.id)}>Delete wall</button>
-        </div>
-      </div>
-    );
-  }
 
   if (!selectedId || !selectedKind) {
     return (
@@ -109,6 +72,34 @@ export default function Inspector() {
             onChange={(e) => updateFurniture(item.id, { color: e.target.value })}
           />
         </label>
+        <div className="inspector-actions">
+          <button
+            onClick={() => {
+              pushHistory();
+              updateFurniture(item.id, { rotationDeg: normalizeDeg(item.rotationDeg - 90) });
+            }}
+          >
+            ⟲ Rotate 90°
+          </button>
+          <button
+            onClick={() => {
+              pushHistory();
+              updateFurniture(item.id, { rotationDeg: normalizeDeg(item.rotationDeg + 90) });
+            }}
+          >
+            ⟳ Rotate 90°
+          </button>
+        </div>
+        <div className="inspector-actions">
+          <button
+            onClick={() => {
+              pushHistory();
+              updateFurniture(item.id, { flippedX: !item.flippedX });
+            }}
+          >
+            {item.flippedX ? "Unflip" : "Flip"} left/right
+          </button>
+        </div>
         <div className="inspector-actions">
           <button onClick={() => duplicateFurniture(item.id)}>Duplicate</button>
           <button className="danger" onClick={() => removeFurniture(item.id)}>Delete</button>
@@ -163,6 +154,58 @@ export default function Inspector() {
         )}
         <div className="inspector-actions">
           <button className="danger" onClick={() => removeOpening(opening.id)}>Delete</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (selectedKind === "wall") {
+    const wall = scene.walls.find((w) => w.id === selectedId);
+    if (!wall) return null;
+    const lengthCm = Math.hypot(wall.end[0] - wall.start[0], wall.end[1] - wall.start[1]);
+    const unitDivisor = displayUnit === "m" ? 100 : displayUnit === "ft" ? 30.48 : 1;
+    return (
+      <div className="inspector-panel">
+        <h2>Wall</h2>
+        <label>
+          Length ({displayUnit})
+          <input
+            type="number"
+            defaultValue={(lengthCm / unitDivisor).toFixed(2)}
+            onBlur={(e) => setWallLength(wall.id, parseLengthToCm(e.target.value, displayUnit))}
+          />
+        </label>
+        <label>
+          Thickness (cm)
+          <input
+            type="number"
+            value={wall.thickness}
+            onChange={(e) => updateWall(wall.id, { thickness: Number(e.target.value) })}
+            onBlur={() => pushHistory()}
+          />
+        </label>
+        <label>
+          Height (cm)
+          <input
+            type="number"
+            value={wall.height}
+            onChange={(e) => updateWall(wall.id, { height: Number(e.target.value) })}
+            onBlur={() => pushHistory()}
+          />
+        </label>
+        <label className="inspector-checkbox">
+          <input
+            type="checkbox"
+            checked={!!wall.isGlass}
+            onChange={(e) => {
+              pushHistory();
+              updateWall(wall.id, { isGlass: e.target.checked });
+            }}
+          />
+          Glass wall
+        </label>
+        <div className="inspector-actions">
+          <button className="danger" onClick={() => removeWall(wall.id)}>Delete</button>
         </div>
       </div>
     );

@@ -32,13 +32,10 @@ export default function WalkControls({ enabled }: { enabled: boolean }) {
   function getColliders() {
     const boxes: THREE.Box2[] = [];
     for (const w of scene.walls) {
-      const startV = scene.vertices.find((v) => v.id === w.startVertexId);
-      const endV = scene.vertices.find((v) => v.id === w.endVertexId);
-      if (!startV || !endV) continue;
-      const x1 = startV.point[0] * CM_TO_M;
-      const z1 = startV.point[1] * CM_TO_M;
-      const x2 = endV.point[0] * CM_TO_M;
-      const z2 = endV.point[1] * CM_TO_M;
+      const x1 = w.start[0] * CM_TO_M;
+      const z1 = w.start[1] * CM_TO_M;
+      const x2 = w.end[0] * CM_TO_M;
+      const z2 = w.end[1] * CM_TO_M;
       const t = (w.thickness * CM_TO_M) / 2;
       const minX = Math.min(x1, x2) - t;
       const maxX = Math.max(x1, x2) + t;
