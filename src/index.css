@@ -136,6 +136,9 @@ button.danger:hover { background: rgba(229, 98, 111, 0.12); }
 }
 .plan-toolbar .hint { font-size: 12px; color: var(--text-1); margin-left: 8px; }
 
+.unit-toggle { display: flex; gap: 2px; margin-left: 4px; }
+.unit-toggle button { padding: 7px 9px; }
+
 .inspector-panel label {
   display: flex;
   flex-direction: column;
