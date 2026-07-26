@@ -70,3 +70,31 @@ export interface CatalogEntry {
    */
   modelUrl?: string;
 }
+
+export type ShapeType =
+  | "sofa"
+  | "sofa-sectional"
+  | "armchair"
+  | "chair"
+  | "table-rect"
+  | "table-round"
+  | "bed"
+  | "wardrobe"
+  | "cabinet-tall"
+  | "cabinet-low"
+  | "fridge"
+  | "stove"
+  | "sink"
+  | "toilet"
+  | "bathtub"
+  | "shower"
+  | "lamp-floor"
+  | "lamp-table"
+  | "plant"
+  | "tv"
+  | "rug"
+  | "mirror"
+  | "aircon"
+  | "ceiling-fan"
+  | "stairs"
+  | "generic-box";

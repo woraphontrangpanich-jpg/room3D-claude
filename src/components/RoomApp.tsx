@@ -4,7 +4,7 @@ import { OrbitControls } from "@react-three/drei";
 import { useRoomStore } from "../store/roomStore";
 import RoomScene from "./scene3d/RoomScene";
 import WalkthroughControls from "./scene3d/WalkthroughControls";
-import PlanEditor2D from "./editor2d/PlanEditor2D";
+import PlanEditor2D from "./Editor2D/PlanEditor2D";
 import Toolbar from "./ui/Toolbar";
 import PropertyPanel from "./ui/PropertyPanel";
 
